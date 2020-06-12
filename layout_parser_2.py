@@ -11,9 +11,12 @@ import math
 from bs4 import BeautifulSoup
 import warnings
 import run_sentence_predict
+
 warnings.filterwarnings("ignore")
 
 estimator = run_sentence_predict.build_model()
+
+
 def get_bbox(node):
     bbox = []
     if "bbox" not in node.keys():
@@ -490,8 +493,6 @@ def append_new_block_to_tree(tree, new_blocks):
     return tree
 
 
-
-
 import os
 import subprocess
 import sys
@@ -543,6 +544,14 @@ def check_next_sentence(sentence_before: str, sentence_after):
         return True
         print("FALSEEEEE!", sentence_before, sentence_after)
 
+from deepsegment2 import DeepSegment
+segmenter = DeepSegment(checkpoint_path='/Users/trinhgiang/Downloads/deepsegment3/checkpoint',params_path='/Users/trinhgiang/Downloads/deepsegment3/params', utils_path='/Users/trinhgiang/Downloads/deepsegment3/utils')
+def check_sentence_boundering(sentence):
+    list_sentences = segmenter.segment_long(sentence.replace("-",""))
+    if (len(list_sentences) > 1):
+        return False
+    return True
+
 
 def check_next_sentence_2(sentence_before: str, sentence_after):
     try:
@@ -550,19 +559,20 @@ def check_next_sentence_2(sentence_before: str, sentence_after):
             return True
         if (check_special(sentence_after)):
             return True
-        if (sentence_before[-1] == '.'):
-            return True
-        if (sentence_after[0].islower()):
-            return False
-        if (len(sentence_before.split(' ')) < 4 and len(sentence_after.split(' ')) < 4):
-            return True
-        if ((sentence_after[0] == '-' or sentence_after[0] == '+') and (
-                sentence_after[1].isupper() or sentence_after[2].isupper())):
-            return True
+        # if (sentence_before[-1] == '.'):
+        #     return True
+        # if (sentence_after[0].islower()):
+        #     return False
+        # if (len(sentence_before.split(' ')) < 4 and len(sentence_after.split(' ')) < 4):
+        #     return True
+        # if ((sentence_after[0] == '-' or sentence_after[0] == '+') and (
+        #         sentence_after[1].isupper() or sentence_after[2].isupper())):
+        #     return True
         sentence_check = sentence_before + ' ' + sentence_after
-        if (run_sentence_predict.get_sentence_lm_2(estimator, [sentence_check])):
+        # if (run_sentence_predict.get_sentence_lm_2(estimator, [sentence_check])):
+        #     return False
+        if (check_sentence_boundering(sentence_check)):
             return False
-
         return True
     except:
         return True
@@ -581,7 +591,6 @@ def _get_files(path):
         return sorted(fpaths)
     else:
         raise IOError(f"File or directory not found: {path}")
-
 
 
 def detect_sentence(tree):
@@ -669,15 +678,17 @@ def detect_sentence_2(tree):
 
     return tree
 
+
 def analysis(tree):
     tree = split_lines(tree)
     tree = merger_block(tree)
     tree = detect_sentence_2(tree)
     return tree
 
+
 # DOC_PATH = '/Users/trinhgiang/Downloads/Gold_Label'
 # files = _get_files(DOC_PATH)
-# file = '/Users/trinhgiang/Downloads/Gold_Label/ANH-L-TopCV.vn-091219.202243.pdf'
+# file = '/Users/trinhgiang/Downloads/Gold_Label/LOAN-B-TopCV.vn-151219.225339.pdf'
 # # Tach line
 # xml_content = subprocess.check_output(
 #     f"pdf2txt.py -t xml -M 3 -A '{file}' ", shell=True
@@ -701,23 +712,29 @@ def analysis(tree):
 # #     print("---------")
 #
 # tree = merger_block(tree)
-
-
+#
 # print("MERGE BLOCK")
-
+#
+# from deepsegment2 import DeepSegment
+# segmenter = DeepSegment(checkpoint_path='/Users/trinhgiang/Downloads/deepsegment3/checkpoint',params_path='/Users/trinhgiang/Downloads/deepsegment3/params', utils_path='/Users/trinhgiang/Downloads/deepsegment3/utils')
+#
 # for par in tree.findall(".//paragraph"):
+#     p = ""
 #     for line in par:
-#         t = ""
+#         t=''
 #         for c in line:
 #             if c.text is None:
 #                 t += r"!0"
 #             else:
 #                 t += c.text
-#         print(t)
-#     #         print(line.attrib["bbox"])
+#         p = p + " " + t[:-1].strip()
+#         # print(t)
 #
+#     list_sentences = segmenter.segment_long(p.replace("-",""))
+#
+#     for sent in list_sentences:
+#         print(sent+"\n")
 #     print("----------------------------------------------------------------------------------------")
-
 
 # tree = detect_sentence_2(tree)
 # with open("./test.txt", 'a+', encoding="utf-8") as total_file:
@@ -734,5 +751,5 @@ def analysis(tree):
 #             total_file.write(sentence)
 #             total_file.write('\n')
 
-# print(check_next_sentence_2("- Xây dựng, quản lý và phát triển content trên các kênh Facebook, Instagram, Zalo...","- Sáng tạo nội dung hình ảnh, thực hiện thiết kế hình ảnh."))
+# print(check_sentence_boundering("- Xây dựng, quản lý và phát triển content trên các kênh Facebook, Instagram, Zalo...- Sáng tạo nội dung hình ảnh, thực hiện thiết kế hình ảnh."))
 # print(re.sub(r'[^a-zA-Z0-9 \- + @ ]', '', "Ngày sinh"))
