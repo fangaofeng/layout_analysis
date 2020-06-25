@@ -57,4 +57,21 @@ list_address = set()
 #     docs =pickle.load(f)
 #  str(docs[0]).replace()
 # print(docs)
+from pyvi import ViTokenizer
+from deepsegment2 import DeepSegment
+import string
+import re
+segmenter = DeepSegment(checkpoint_path='/home/ds-lab/Downloads/output7/checkpoint',params_path='/home/ds-lab/Downloads/output7/params', utils_path='/home/ds-lab/Downloads/output7/utils')
+# segmenter = DeepSegment(checkpoint_path='/home/ds-lab/Downloads/output2/checkpoint',params_path='/home/ds-lab/Downloads/output2/params', utils_path='/home/ds-lab/Downloads/output2/utils')
 
+
+
+p = "Ngày sinh: Địa chỉ: Điện thoại:"
+p = ViTokenizer.tokenize(p).replace("_"," ")
+
+# a = re.sub('['+string.punctuation+']', ' ', p.strip())
+# a = p.replace("-","").replace(","," , ").replace(";"," ; ").replace("."," . ").replace("?"," ? ").replace("!"," ! ")
+a = p.replace("-","")
+
+list_sentences = segmenter.segment_long(a.strip(),n_window=10)
+print(list_sentences)

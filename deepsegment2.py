@@ -8,7 +8,6 @@ import logging
 import time
 import glob
 
-
 is_tfserving_installed = True
 
 try:
@@ -17,6 +16,7 @@ try:
     from tensorflow.python.saved_model import signature_constants
     from tensorflow_serving.apis import predict_pb2
     from tensorflow_serving.apis import prediction_service_pb2_grpc
+
 except Exception as ex:
     is_tfserving_installed = False
     logging.warn("Tensorflow serving is not installed. Cannot be used with tesnorflow serving docker images.")
@@ -182,7 +182,6 @@ class DeepSegment():
             DeepSegment.seqtag_model = 'deepsegment_' + lang_code
 
         DeepSegment.data_converter = pickle.load(open(utils_path, 'rb'))
-
     def segment(self, sents, batch_size=32):
         """
         segment a list of sentences or single sentence

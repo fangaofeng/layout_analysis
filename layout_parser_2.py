@@ -10,11 +10,11 @@ import numpy as np
 import math
 from bs4 import BeautifulSoup
 import warnings
-import run_sentence_predict
+# import run_sentence_predict
 
 warnings.filterwarnings("ignore")
 
-estimator = run_sentence_predict.build_model()
+# estimator = run_sentence_predict.build_model()
 
 
 def get_bbox(node):
@@ -89,8 +89,99 @@ def get_word_spaces(tree):
 
     return spaces, lines
 
-
 def split_lines(tree):
+    count = 0
+    spaces, lines = get_word_spaces(tree)
+    for size in spaces:
+        distances = []
+        wrong_distance = 0
+        for space in spaces[size]:
+            distances.append([space["width"]])
+            max_space = lines[space["line"]]["max_char_width"] * 2.3
+            if wrong_distance < max_space:
+                wrong_distance = max_space
+        distances.append([wrong_distance])
+        if len(distances) < 2:
+            continue
+        X = np.array(distances)
+        kmeans = KMeans(n_clusters=2, random_state=0).fit(X)
+        if kmeans.cluster_centers_[0][0] < kmeans.cluster_centers_[1][0]:
+            wrong_space_label = 1
+        else:
+            wrong_space_label = 0
+        for i in range(len(kmeans.labels_) - 1):
+            if kmeans.labels_[i] == wrong_space_label and distances[i][0] > lines[spaces[size][i]["line"]][
+                "max_char_width"] * 0.5:
+                position = spaces[size][i]["position"]
+                lines[spaces[size][i]["line"]]["wrong_spaces"].append(position)
+    for line in lines:
+        if len(line["wrong_spaces"]) != 0 and len(line["wrong_spaces"]) < 4:
+
+            tree = add_sub_line(tree, line["node"], line["wrong_spaces"])
+
+            text = line['text']
+            print(line['text'])
+            count += 1
+
+        else:
+            line["node"].tag = "txtline"
+    etree.strip_tags(tree, ["textline", "textbox"])
+    for layout in tree.findall(".//layout"):
+        layout.getparent().remove(layout)
+    for line in tree.findall(".//txtline"):
+        line.tag = "textline"
+        bbox = get_bbox(line)
+        right = bbox[2]
+        fonts = []
+        sizes = []
+        ncolours = []
+        char_null_attrib = []
+        for char in line:
+            if "bbox" not in char.keys():
+                char.set("bbox", str(right) + "," + str(bbox[1]) + "," + str(right) + "," + str(bbox[3]))
+                continue
+            else:
+                char_box = get_bbox(char)
+                if right < char_box[2]:
+                    right = char_box[2]
+            if "font" in char.keys():
+                fonts.append(char.attrib["font"])
+            if "size" in char.keys():
+                sizes.append(char.attrib["size"])
+            if "ncolour" in char.keys():
+                ncolours.append(char.attrib["ncolour"])
+        if len(fonts) == 0:
+            font = "null"
+        else:
+            font = max(set(fonts), key=fonts.count)
+        if len(sizes) == 0:
+            size = "null"
+        else:
+            size = max(set(sizes), key=fonts.count)
+        if len(ncolours) == 0:
+            ncolour = "null"
+        else:
+            ncolour = max(set(ncolours), key=ncolours.count)
+        for char in line:
+            if "font" not in char.keys():
+                char.set("font", font)
+            if "size" not in char.keys():
+                char.set("size", size)
+            if "ncolour" not in char.keys():
+                char.set("ncolour", ncolour)
+    for fig in tree.findall(".//figure"):
+        flag = 0
+        for ob in fig:
+            if ob.tag == "textline":
+                flag = 1
+                break
+        if flag:
+            for chil in fig:
+                fig.getparent().append(chil)
+            fig.getparent().remove(fig)
+    return tree
+
+def split_lines_2(tree):
     count = 0
     spaces, lines = get_word_spaces(tree)
     for size in spaces:
@@ -239,16 +330,30 @@ def get_lines(tree):
             page = int(line.getparent().attrib["id"])
             sizes = []
             size = 0
+            fonts = []
+            ncolours = []
+            font = 'null'
+            ncolour = 'null'
             for char in line:
                 if "size" in char.keys():
                     sizes.append(float(char.attrib["size"]))
+                if "font" in char.keys():
+                    fonts.append(str(char.attrib["font"]))
+                if "ncolour" in char.keys():
+                    ncolours.append(str(char.attrib["ncolour"]))
             if sizes:
                 size = max(set(sizes), key=sizes.count)
+            if fonts:
+                font = max(set(fonts), key=fonts.count)
+            if ncolours:
+                ncolour = max(set(ncolours), key=ncolours.count)
             lines.append({
                 "node": line,
                 "bbox": bbox,
                 "paragraph": 0,
                 "size": size,
+                "font": font,
+                "ncolour": ncolour
             })
         pages.append(lines)
     return pages
@@ -289,6 +394,8 @@ def get_matrix_distance(pages):
                     temp.append(0)
                 else:
                     if abs(page[i]["size"] - page[j]["size"]) >= 0.2:
+                        temp.append(10.0)
+                    elif (page[i]["font"] != page[j]["font"] or page[i]["ncolour"] != page[j]["ncolour"]):
                         temp.append(10.0)
                     else:
                         temp.append(align_distance(page[i]["bbox"], page[j]["bbox"]))
@@ -544,9 +651,12 @@ def check_next_sentence(sentence_before: str, sentence_after):
         return True
         print("FALSEEEEE!", sentence_before, sentence_after)
 
-from deepsegment2 import DeepSegment
-segmenter = DeepSegment(checkpoint_path='/Users/trinhgiang/Downloads/deepsegment3/checkpoint',params_path='/Users/trinhgiang/Downloads/deepsegment3/params', utils_path='/Users/trinhgiang/Downloads/deepsegment3/utils')
+
 def check_sentence_boundering(sentence):
+    from deepsegment2 import DeepSegment
+    segmenter = DeepSegment(checkpoint_path='/home/ds-lab/Downloads/output/checkpoint',
+                            params_path='/home/ds-lab/Downloads/output/params',
+                            utils_path='/home/ds-lab/Downloads/output/utils')
     list_sentences = segmenter.segment_long(sentence.replace("-",""))
     if (len(list_sentences) > 1):
         return False
@@ -589,8 +699,8 @@ def _get_files(path):
     fpaths = [x for x in fpaths if _can_read(x)]
     if len(fpaths) > 0:
         return sorted(fpaths)
-    else:
-        raise IOError(f"File or directory not found: {path}")
+    # else:
+    #     raise IOError(f"File or directory not found: {path}")
 
 
 def detect_sentence(tree):
@@ -686,55 +796,57 @@ def analysis(tree):
     return tree
 
 
-# DOC_PATH = '/Users/trinhgiang/Downloads/Gold_Label'
-# files = _get_files(DOC_PATH)
-# file = '/Users/trinhgiang/Downloads/Gold_Label/LOAN-B-TopCV.vn-151219.225339.pdf'
-# # Tach line
-# xml_content = subprocess.check_output(
-#     f"pdf2txt.py -t xml -M 3 -A '{file}' ", shell=True
-# )
-# soup = BeautifulSoup(xml_content, "lxml")
-# all_xml_elements = soup.find_all("pages")
-# if len(all_xml_elements) != 1:
-#     raise NotImplementedError(
-#         f"unsupported format file: {file}"
-#     )
-# text = all_xml_elements[0]
-# tree = etree.fromstring(str(text))
+DOC_PATH = '/home/ds-lab/Downloads/Gold_Label'
+files = _get_files(DOC_PATH)
+file = '/home/ds-lab/Downloads/Gold_Label/CAM-C-TopCV.vn-091219.161536.pdf'
+# Tach line
+xml_content = subprocess.check_output(f"pdf2txt.py -t xml -M 3 -A '{file}'", shell=True
+)
+soup = BeautifulSoup(xml_content, "lxml")
+all_xml_elements = soup.find_all("pages")
+if len(all_xml_elements) != 1:
+    raise NotImplementedError(
+        f"unsupported format file: {file}"
+    )
+text = all_xml_elements[0]
+tree = etree.fromstring(str(text))
+
+tree = split_lines(tree)
+# print("SPLIT LINE")
+# for line in tree.findall(".//textline"):
+#     t = ""
+#     for text in line:
+#         t += text.text
+#     print(t)
+#     print("---------")
+
+tree = merger_block(tree)
+
+print("MERGE BLOCK")
 #
-# tree = split_lines(tree)
-# # print("SPLIT LINE")
-# # for line in tree.findall(".//textline"):
-# #     t = ""
-# #     for text in line:
-# #         t += text.text
-# #     print(t)
-# #     print("---------")
-#
-# tree = merger_block(tree)
-#
-# print("MERGE BLOCK")
-#
-# from deepsegment2 import DeepSegment
-# segmenter = DeepSegment(checkpoint_path='/Users/trinhgiang/Downloads/deepsegment3/checkpoint',params_path='/Users/trinhgiang/Downloads/deepsegment3/params', utils_path='/Users/trinhgiang/Downloads/deepsegment3/utils')
-#
-# for par in tree.findall(".//paragraph"):
-#     p = ""
-#     for line in par:
-#         t=''
-#         for c in line:
-#             if c.text is None:
-#                 t += r"!0"
-#             else:
-#                 t += c.text
-#         p = p + " " + t[:-1].strip()
-#         # print(t)
-#
-#     list_sentences = segmenter.segment_long(p.replace("-",""))
-#
-#     for sent in list_sentences:
-#         print(sent+"\n")
-#     print("----------------------------------------------------------------------------------------")
+from pyvi import ViTokenizer
+from deepsegment2 import DeepSegment
+segmenter = DeepSegment(checkpoint_path='/home/ds-lab/Downloads/output7/checkpoint',params_path='/home/ds-lab/Downloads/output7/params', utils_path='/home/ds-lab/Downloads/output7/utils')
+
+for par in tree.findall(".//paragraph"):
+    p = ""
+    for line in par:
+        t=''
+        for c in line:
+            if c.text is None:
+                t += r"!0"
+            else:
+                t += c.text
+        p = p + " " + t[:-1].strip()
+        # print(t)
+    # a = p.strip().replace("-", "").replace(",", " , ").replace(";", " ; ").replace(".", " . ").replace("?", " ? ").replace("!", " ! ")
+    p = ViTokenizer.tokenize(p).replace("_"," ")
+    a = p.strip().replace("-", "")
+    list_sentences = segmenter.segment_long(a.strip(),n_window=10)
+
+    for sent in list_sentences:
+        print(sent+"\n")
+    print("----------------------------------------------------------------------------------------")
 
 # tree = detect_sentence_2(tree)
 # with open("./test.txt", 'a+', encoding="utf-8") as total_file:

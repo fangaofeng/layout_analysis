@@ -124,6 +124,7 @@ def split_lines(tree):
         right = bbox[2]
         fonts = []
         sizes = []
+        ncolours = []
         char_null_attrib = []
         for char in line:
             if "bbox" not in char.keys():
@@ -137,6 +138,8 @@ def split_lines(tree):
                 fonts.append(char.attrib["font"])
             if "size" in char.keys():
                 sizes.append(char.attrib["size"])
+            if "ncolour" in char.keys():
+                ncolours.append(char.attrib["ncolour"])
         if len(fonts) == 0:
             font = "null"
         else:
@@ -145,11 +148,17 @@ def split_lines(tree):
             size = "null"
         else:
             size = max(set(sizes), key=fonts.count)
+        if len(ncolours) == 0:
+            ncolour = "null"
+        else:
+            ncolour = max(set(ncolours), key=ncolours.count)
         for char in line:
             if "font" not in char.keys():
                 char.set("font", font)
             if "size" not in char.keys():
                 char.set("size", size)
+            if "ncolour" not in char.keys():
+                char.set("ncolour", ncolour)
     for fig in tree.findall(".//figure"):
         flag = 0
         for ob in fig:
@@ -160,7 +169,7 @@ def split_lines(tree):
             for chil in fig:
                 fig.getparent().append(chil)
             fig.getparent().remove(fig)
-    return tree, count
+    return tree
 
 
 def add_sub_line(tree, line, wrong_spaces):

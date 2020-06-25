@@ -20,8 +20,8 @@ from __future__ import print_function
 
 import os
 import json
-import modeling
-import tokenization
+# import modeling
+# import tokenization
 import numpy as np
 import tensorflow as tf
 
